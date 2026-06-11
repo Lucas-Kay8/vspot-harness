@@ -65,6 +65,12 @@ AI coding should not be treated as a black-box conversation. A production-ready 
 
 We call this the **VSPOT Framework** (Verification, State, Permission, Observability, Tool Governance).
 
+## 🙏 致谢 (Acknowledgments)
+
+本项目深受 [BMad Method](https://github.com/bmad-app/bmad-method) 的启发，并作为其执行阶段的延伸而设计。BMad Method 开创性地定义了如何让 AI 智能体像真实的研发团队一样进行系统性的软件“规划”，而本项目在此基础上，为“执行”阶段补齐了不可或缺的边界控制与状态追踪。特别感谢 BMad 团队在 Agentic 软件开发流程探索上所做出的卓越贡献。
+
+This project is deeply inspired by and designed as an execution-phase extension to the [BMad Method](https://github.com/bmad-app/bmad-method). The BMad Method pioneered how AI agents can systematically "plan" software like a real R&D team. Building upon that foundation, this project completes the puzzle by adding the essential boundary controls and state tracking needed for the "execution" phase. Special thanks to the BMad team for their outstanding contributions to exploring agentic software development workflows.
+
 ## 📄 许可证 (License)
 
 MIT License. See [LICENSE](LICENSE) for details.
