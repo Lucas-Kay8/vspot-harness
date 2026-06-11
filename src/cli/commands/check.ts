@@ -8,6 +8,7 @@ export function checkCommand(options: {
   file?: string;
   command?: string;
   json?: boolean;
+  platform?: string;
 }) {
   const configPath = getConfigPath();
   if (!fs.existsSync(configPath)) {
@@ -23,8 +24,31 @@ export function checkCommand(options: {
     process.exit(2);
   }
 
+  const platform = options.platform;
   const action = options.action || 'edit';
   const isJson = options.json || false;
+
+  // 0. 若指定平台，进行平台适配翻译评估
+  if (platform) {
+    const result = engine.evaluatePlatformAction(platform, action, {
+      file: options.file,
+      command: options.command
+    });
+
+    if (isJson) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(pc.blue(`📋 评估结果 (平台: ${platform}, 操作: ${action}):`));
+      const formattedDecision = formatDecision(result.decision);
+      console.log(`  决策: ${formattedDecision}`);
+      console.log(`  原因: ${result.reason}`);
+      if (result.approver) {
+        console.log(`  需要审批人: ${pc.yellow(result.approver)}`);
+      }
+    }
+
+    process.exit(getExitCode(result.decision));
+  }
 
   // 1. 文件访问评估
   if (action === 'read' || action === 'edit' || options.file) {

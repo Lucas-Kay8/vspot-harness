@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🧪 开始运行 VSPOT Harness 命令行集成测试..."
+echo "🧪 开始运行 VSPOT Harness 命令行集成测试 (P3 适配升级)..."
 
 # 准备沙盒测试目录
 BASE_DIR=$(pwd)
@@ -52,11 +52,14 @@ for (const run of runs) {
 echo "✔ STORY-101 运行环境启动成功 (Run ID: $RUN_ID_101)"
 export VSPOT_RUN_ID="$RUN_ID_101"
 
-# 3. 运行 check (静态评估)
+# 3. 运行 check (静态评估，增加平台适配测试)
 echo "----------------------------------------"
-echo "3. 测试 check 命令..."
+echo "3. 测试 check 命令 (含平台适配)..."
+
+# 3.1 测试正常允许的命令
 node "$BASE_DIR/bin/vspotharness.js" check --action run --command "npm test"
 
+# 3.2 测试禁止的命令 (预期返回 4)
 set +e
 node "$BASE_DIR/bin/vspotharness.js" check --action run --command "rm -rf src"
 EXIT_CODE=$?
@@ -65,7 +68,18 @@ if [ $EXIT_CODE -ne 4 ]; then
   echo "❌ Error: check 禁止命令预期退出码为 4，实际为 $EXIT_CODE"
   exit 1
 fi
-echo "✔ check 验证成功"
+
+# 3.3 测试平台适配判定 (Claude Code 写入敏感路径，预期被翻译为 filesystem.write，并匹配 'auth' 规则返回 3 需审批)
+set +e
+node "$BASE_DIR/bin/vspotharness.js" check --platform claude-code --action apply_patch --file auth/callback.ts
+EXIT_CODE=$?
+set -e
+if [ $EXIT_CODE -ne 3 ]; then
+  echo "❌ Error: 平台动作评估预期因 auth/callback.ts 需审批返回 3，实际为 $EXIT_CODE"
+  exit 1
+fi
+
+echo "✔ check 与平台适配转换验证成功"
 
 # 4. 运行 exec 命令
 echo "----------------------------------------"
@@ -138,9 +152,9 @@ if [ $EXIT_CODE -ne 5 ]; then
 fi
 echo "✔ verify 门禁成功防御并拦截违规行为 (退出码: 5)"
 
-# 6. 测试完全合规通过流 (STORY-102)
+# 6. 测试完全合规通过流 (STORY-102 & CI 验证)
 echo "----------------------------------------"
-echo "6. 测试完全合规通过流 (STORY-102)..."
+echo "6. 测试完全合规通过流与 CI 输出 (STORY-102)..."
 node "$BASE_DIR/bin/vspotharness.js" run start STORY-102
 
 # 精准抓取 STORY-102 的 Run ID
@@ -162,27 +176,27 @@ for (const run of runs) {
 ")
 echo "STORY-102 Run ID: $RUN_ID_102"
 
-# 切换 Run 环境
+# 切换 Run Env
 export VSPOT_RUN_ID="$RUN_ID_102"
 
-# 动态扩展 STORY-102 的 scope 使其包含 package.json
+# 动态扩展 STORY-102 的 scope，使其通配所有变动文件
 node -e "
 const fs = require('fs');
 const yaml = require('js-yaml');
 const p = '.vspotharness/stories/STORY-102/story.yaml';
 const story = yaml.load(fs.readFileSync(p, 'utf8'));
-story.scope.include.push('package.json');
+story.scope.include = ['**/*'];
 fs.writeFileSync(p, yaml.dump(story), 'utf8');
 "
 
-# 写入对 package.json 修改的审批
+# 写入对所有修改文件的审批（匹配通配符 *）
 cat <<EOF > .vspotharness/approvals/APR-test-102.json
 {
   "approval_id": "APR-test-102",
   "story_id": "STORY-102",
   "run_id": "$RUN_ID_102",
   "decision": "approved",
-  "resources": ["package.json"],
+  "resources": ["*"],
   "approver": "owner",
   "issued_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
@@ -192,9 +206,9 @@ EOF
 node "$BASE_DIR/bin/vspotharness.js" exec -- npm test
 node "$BASE_DIR/bin/vspotharness.js" exec -- npm run build
 
-# 执行验证，没有违规，预期返回 0 (PASS)
-node "$BASE_DIR/bin/vspotharness.js" verify
-echo "✔ STORY-102 verify 完全合规流验证成功 (退出码: 0)"
+# 执行验证 (使用 --ci 模式测试，没有违规且正常通过，预期返回 0)
+node "$BASE_DIR/bin/vspotharness.js" verify --ci
+echo "✔ STORY-102 verify --ci 合规流验证成功 (退出码: 0)"
 
 # 7. 运行 report 生成报告
 echo "----------------------------------------"
@@ -215,6 +229,6 @@ node "$BASE_DIR/bin/vspotharness.js" doctor
 echo "✔ doctor 验证成功"
 
 echo "========================================"
-echo "🎉 VSPOT Harness 命令行集成测试全部通过！"
+echo "🎉 VSPOT Harness P3 命令行集成测试全部通过！"
 echo "========================================"
 cd "$BASE_DIR"

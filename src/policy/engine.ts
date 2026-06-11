@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import Ajv from 'ajv';
 import { minimatch } from 'minimatch';
+import { adapterManager } from '../adapters/manager';
 
 export type Decision = 'allow' | 'require_approval' | 'deny' | 'needs_review';
 
@@ -201,5 +202,54 @@ export class PolicyEngine {
       reason: `匹配命令规则 [${worstCase.rule.id}] (模式: ${worstCase.rule.match.join(', ')})`,
       approver: worstCase.rule.approver
     };
+  }
+
+  /**
+   * 基于平台适配器评估工具/操作策略
+   */
+  public evaluatePlatformAction(
+    platform: string,
+    action: string,
+    target: { file?: string; command?: string } = {}
+  ): DecisionResult {
+    // 翻译动作名称为标准 VSPOT 能力
+    const stdCapability = adapterManager.translateAction(platform, action);
+
+    switch (stdCapability) {
+      case 'filesystem.read':
+        if (!target.file) {
+          return {
+            decision: 'deny',
+            reason: `平台动作映射到 filesystem.read，但缺少文件路径。`
+          };
+        }
+        return this.evaluateFileAccess(target.file, 'read');
+
+      case 'filesystem.write':
+        if (!target.file) {
+          return {
+            decision: 'deny',
+            reason: `平台动作映射到 filesystem.write，但缺少文件路径。`
+          };
+        }
+        return this.evaluateFileAccess(target.file, 'write');
+
+      case 'shell.execute':
+        if (!target.command) {
+          return {
+            decision: 'deny',
+            reason: `平台动作映射到 shell.execute，但缺少 Shell 命令参数。`
+          };
+        }
+        return this.evaluateCommand(target.command);
+
+      default:
+        // 若没有映射到这三类标准执行动作（比如其它不产生副作用的动作），则返回默认的未知操作决策
+        const defaultDecision = this.policy.defaults?.unknown_action || 'require_approval';
+        return {
+          decision: defaultDecision,
+          reason: `未识别的平台操作 "${action}" (被译为: "${stdCapability}")，采用默认决策。`
+        };
+    }
   }
 }

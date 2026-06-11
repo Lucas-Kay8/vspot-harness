@@ -1,0 +1,51 @@
+# VSPOT Harness 官方 GitHub Actions CI 门禁集成模板
+# 将此文件保存为目标项目的 .github/workflows/vspot-verify.yml 即可激活
+
+name: VSPOT Harness Governance Gate
+
+on:
+  pull_request:
+    branches: [ main, master, dev ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  governance-gate:
+    name: Evaluate VSPOT Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 必须获取完整的 git 历史以对比 baseline commit 差异
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 如果被治理项目是 Node 项目，安装其自身的测试与构建依赖
+      - name: Install project dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f pnpm-lock.yaml ]; then
+            npm install -g pnpm && pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile
+          else
+            npm install
+          fi
+
+      # 安装并编译 VSPOT Harness (也可以通过 npm install -g vspotharness 全局安装)
+      - name: Install VSPOT Harness CLI
+        run: npm install -g vspotharness
+
+      # 运行 VSPOT 门禁验证 (使用 --ci 模式)
+      # 退出状态码非 0 会使整个 Action 运行失败，从而在 PR 页面中进行强力合并阻断
+      - name: Execute VSPOT Verify
+        run: vspotharness verify --ci
+        env:
+          # CI 任务会自动读取最新运行完的 Run ID 或者是提取当前 PR 绑定的 Run ID
+          VSPOT_RUN_ID: ${{ env.VSPOT_RUN_ID }}

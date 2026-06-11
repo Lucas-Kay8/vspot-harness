@@ -54,7 +54,6 @@ function hasValidApprovalForFile(approvalsDir: string, storyId: string, runId: s
       if (approval.decision !== 'approved' && approval.decision !== 'approved_with_changes') continue;
       if (approval.expires_at && new Date(approval.expires_at) < now) continue;
 
-      // 检查 resources 列表是否包含了对该文件的审批
       if (approval.resources && Array.isArray(approval.resources)) {
         for (const pattern of approval.resources) {
           if (minimatch(filePath, pattern, { dot: true }) || pattern === '*') {
@@ -69,17 +68,27 @@ function hasValidApprovalForFile(approvalsDir: string, storyId: string, runId: s
   return false;
 }
 
-export function verifyCommand(options: { run?: string }) {
+export function verifyCommand(options: { run?: string; ci?: boolean }) {
   const runId = options.run || process.env.VSPOT_RUN_ID;
+  const isCi = options.ci || false;
+
+  // 自定义 CI 无 ANSI 颜色的格式封装
+  const colorGreen = (s: string) => isCi ? s : pc.green(s);
+  const colorRed = (s: string) => isCi ? s : pc.red(s);
+  const colorBlue = (s: string) => isCi ? s : pc.blue(s);
+  const colorGray = (s: string) => isCi ? s : pc.gray(s);
+  const colorWhite = (s: string) => isCi ? s : pc.white(s);
+  const colorBold = (s: string) => isCi ? s : pc.bold(s);
+
   if (!runId) {
-    console.error(pc.red(`❌ 缺少 Run ID。请使用 --run 参数或指定 VSPOT_RUN_ID 环境变量。`));
+    console.error(colorRed(`❌ 缺少 Run ID。请使用 --run 参数或指定 VSPOT_RUN_ID 环境变量。`));
     process.exit(2);
   }
 
   const runJsonPath = getRunJsonPath(runId);
   const runDir = getRunDir(runId);
   if (!fs.existsSync(runJsonPath)) {
-    console.error(pc.red(`❌ 找不到运行实例记录: ${runId}`));
+    console.error(colorRed(`❌ 找不到运行实例记录: ${runId}`));
     process.exit(2);
   }
 
@@ -112,7 +121,7 @@ export function verifyCommand(options: { run?: string }) {
     // 忽略非致命状态跳转错误
   }
 
-  console.log(pc.blue(`⚡ 正在评估运行环境 [${runId}] 的安全与质量门禁 (Verification Gates)...`));
+  console.log(colorBlue(`⚡ 正在评估运行环境 [${runId}] 的安全与质量门禁 (Verification Gates)...`));
 
   const changedFiles = getChangedFiles(runState.baseline_commit);
   const events = logger.getEvents();
@@ -131,10 +140,9 @@ export function verifyCommand(options: { run?: string }) {
       const excludePatterns = story.scope.exclude || [];
 
       for (const file of changedFiles) {
-        // 排除 .vspotharness 内的文件修改
         if (file.startsWith('.vspotharness/')) continue;
 
-        let included = includePatterns.length === 0; // 若包含列表为空，则默认全部包含
+        let included = includePatterns.length === 0;
         for (const pattern of includePatterns) {
           if (minimatch(file, pattern, { dot: true })) {
             included = true;
@@ -169,7 +177,7 @@ export function verifyCommand(options: { run?: string }) {
     });
   }
 
-  // 2. permissions 门禁 (二次核对改动的文件是否具备所需权限或审批)
+  // 2. permissions 门禁
   if (requiredGates.includes('permissions')) {
     let passed = true;
     let message = '所有文件修改策略判定通过。';
@@ -253,7 +261,7 @@ export function verifyCommand(options: { run?: string }) {
     });
   }
 
-  // 5. approvals 门禁 (这里可以是对命令的审批记录校验，我们检查 events 里的敏感命令是否都有审批)
+  // 5. approvals 门禁
   if (requiredGates.includes('approvals')) {
     let passed = true;
     let message = '未发现越权执行命令的情况，所有敏感命令均已获得审批。';
@@ -264,8 +272,6 @@ export function verifyCommand(options: { run?: string }) {
       for (const evt of execEvents) {
         const cmdDecision = policyEngine.evaluateCommand(evt.command || '');
         if (cmdDecision.decision === 'require_approval') {
-          // 追溯这个命令当时是否真的通过了审批
-          // (或者当时由于缺乏审批被拦截了)
           if (evt.result === 'approval_pending') {
             unauthorizedCommands.push(`[拦截] ${evt.command}`);
             passed = false;
@@ -298,27 +304,27 @@ export function verifyCommand(options: { run?: string }) {
   }
 
   // 输出门禁判定结果
-  console.log(pc.white('\n==================== 门禁核对报告 ===================='));
+  console.log(colorWhite('\n==================== 门禁核对报告 ===================='));
   let allPassed = true;
   for (const gate of gateResults) {
-    const statusStr = gate.passed ? pc.green(`[${gate.status}]`) : pc.red(`[${gate.status}]`);
-    console.log(`${statusStr} ${pc.bold(gate.name)}`);
-    console.log(`      ${pc.gray(gate.message)}`);
+    const statusStr = gate.passed ? colorGreen(`[${gate.status}]`) : colorRed(`[${gate.status}]`);
+    console.log(`${statusStr} ${colorBold(gate.name)}`);
+    console.log(`      ${colorGray(gate.message)}`);
     if (!gate.passed) {
       allPassed = false;
     }
   }
-  console.log(pc.white('===================================================='));
+  console.log(colorWhite('===================================================='));
 
   // 记录状态转换
   let finalStatus: StoryStatus = 'FIXING';
   if (allPassed) {
     finalStatus = 'READY_FOR_REVIEW';
-    console.log(pc.green(`\n🎉 恭喜！所有门禁校验成功通过。`));
-    console.log(pc.white(`已自动将 Story 状态变更为: READY_FOR_REVIEW`));
+    console.log(colorGreen(`\n🎉 恭喜！所有门禁校验成功通过。`));
+    console.log(colorWhite(`已自动将 Story 状态变更为: READY_FOR_REVIEW`));
   } else {
-    console.log(pc.red(`\n❌ 门禁验证未全部通过，请按提示补齐测试、构建或审批证据。`));
-    console.log(pc.white(`已自动将 Story 状态变更为: FIXING`));
+    console.log(colorRed(`\n❌ 门禁验证未全部通过，请按提示补齐测试、构建或审批证据。`));
+    console.log(colorWhite(`已自动将 Story 状态变更为: FIXING`));
   }
 
   try {

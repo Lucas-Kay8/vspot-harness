@@ -1,0 +1,17 @@
+{
+  "name": "vspot-harness",
+  "version": "0.1.0",
+  "description": "Policy-driven execution governance module for BMad Method workflows",
+  "author": "Lucas",
+  "license": "MIT",
+  "compat": "BMad Method v6.8+",
+  "artifact_mapping": {
+    "story_id": "story_id",
+    "story_title": "title",
+    "acceptance_criteria": "acceptance_criteria",
+    "technical_context": "technical_context",
+    "files_likely_to_change": "scope.include",
+    "out_of_scope_notes": "scope.exclude",
+    "risk_notes": "risk"
+  }
+}

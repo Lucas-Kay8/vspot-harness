@@ -1,0 +1,53 @@
+{
+  "skills": [
+    {
+      "name": "vspotharness-init",
+      "description": "Initialize VSPOT Harness configuration in the current project",
+      "input_parameters": {
+        "force": {
+          "type": "boolean",
+          "description": "Overwrite existing config.yaml policy file",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "vspotharness-check",
+      "description": "Evaluate a file action or shell command against VSPOT policies before execution",
+      "input_parameters": {
+        "action": {
+          "type": "string",
+          "enum": ["read", "edit", "run"],
+          "description": "Action type to evaluate",
+          "required": true
+        },
+        "file": {
+          "type": "string",
+          "description": "Path of the target file (required for edit/read)",
+          "required": false
+        },
+        "command": {
+          "type": "string",
+          "description": "Shell command string to evaluate (required for run)",
+          "required": false
+        },
+        "platform": {
+          "type": "string",
+          "description": "Agent platform context (e.g. claude-code, cursor)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "vspotharness-verify",
+      "description": "Evaluate Verification Gates for the current story execution run",
+      "input_parameters": {
+        "runId": {
+          "type": "string",
+          "description": "Target execution run ID (optional, reads VSPOT_RUN_ID by default)",
+          "required": false
+        }
+      }
+    }
+  ]
+}

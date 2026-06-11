@@ -44,6 +44,7 @@ program
   .option('-f, --file <filePath>', 'Path of the target file to evaluate')
   .option('-c, --command <shellCmd>', 'Shell command string to evaluate')
   .option('-j, --json', 'Output results in machine-readable JSON format')
+  .option('-p, --platform <platform>', 'Agent platform context (e.g. claude-code, cursor)')
   .action((options) => {
     checkCommand(options);
   });
@@ -63,6 +64,7 @@ program
   .command('verify')
   .description('Evaluate Verification Gates for a specific run')
   .option('-r, --run <runId>', 'Target execution run ID (or VSPOT_RUN_ID env)')
+  .option('--ci', 'CI execution mode (minimal console styling)')
   .action((options) => {
     verifyCommand(options);
   });
