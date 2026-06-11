@@ -31,6 +31,15 @@ if [ ! -f ".vspotharness/owner_key" ] || [ ! -f ".vspotharness/owner_key.pub" ];
 fi
 echo "✔ init 与非对称加密密钥生成验证成功"
 
+# 初始化本地沙盒 Git 仓库，确保 git 状态完全独立
+git init
+git config user.name "sandbox"
+git config user.email "sandbox@example.com"
+git config commit.gpgsign false
+git add .
+git commit -m "initial commit"
+
+
 # 2. 运行 run start (STORY-101: 违规与拦截测试)
 echo "----------------------------------------"
 echo "2. 测试 run start 命令 (STORY-101)..."
@@ -176,9 +185,14 @@ if [ $EXIT_CODE -ne 5 ]; then
 fi
 echo "✔ 审计日志篡改哈希链检验拦截验证成功 (退出码: 5)"
 
-# 6. 测试完全合规通过流 (STORY-102 & CI 验证)
+# 6. 测试完全合规通过流与 CI 输出 (STORY-102)...
 echo "----------------------------------------"
 echo "6. 测试完全合规通过流与 CI 输出 (STORY-102)..."
+
+# 将当前沙盒工作区状态全部 commit，作为 STORY-102 的干净基线 Commit
+git add .
+git commit -m "baseline commit for story-102" || true
+
 node "$BASE_DIR/bin/vspotharness.js" run start STORY-102
 
 # 精准抓取 STORY-102 的 Run ID
@@ -228,17 +242,81 @@ node "$BASE_DIR/bin/vspotharness.js" exec -- npm run build
 node "$BASE_DIR/bin/vspotharness.js" verify --ci
 echo "✔ STORY-102 verify --ci 合规流验证成功 (退出码: 0)"
 
-# 7. 运行 report 生成报告
-echo "----------------------------------------"
-echo "7. 测试 report 审计报告生成..."
-node "$BASE_DIR/bin/vspotharness.js" report
+# 6.1 测试 Harness 自身策略防篡改 (P5.1)
+echo "6.1 测试 Harness 自身策略防篡改..."
+# 备份策略配置文件
+cp .vspotharness/config.yaml .vspotharness/config.yaml.bak
+# 故意修改策略配置文件
+echo "# Tampered by Agent" >> .vspotharness/config.yaml
 
-REPORT_FILE_102=".vspotharness/runs/$RUN_ID_102/report.md"
-if [ ! -f "$REPORT_FILE_102" ]; then
-  echo "❌ Error: STORY-102 审计报告未生成"
+set +e
+node "$BASE_DIR/bin/vspotharness.js" verify --ci
+EXIT_CODE=$?
+set -e
+if [ $EXIT_CODE -ne 5 ]; then
+  echo "❌ Error: 篡改自身策略配置后 verify 应该失败返回 5，实际为 $EXIT_CODE"
   exit 1
 fi
-echo "✔ report 验证成功"
+# 还原策略文件
+mv .vspotharness/config.yaml.bak .vspotharness/config.yaml
+echo "✔ Harness 自身策略防篡改拦截验证成功"
+
+# 6.2 测试防 TOCTOU 时间差漏洞校验 (P5.2)
+echo "6.2 测试防 TOCTOU 时间差漏洞校验..."
+# 故意修改一个外部受监管的变动文件内容以产生真实的 Git Diff 并更新其 mtime
+# 暂停 1 秒以制造时间差
+sleep 1
+echo "" >> package.json
+
+# 此时运行 verify，应该因为 TOCTOU 校验失败而阻断
+set +e
+node "$BASE_DIR/bin/vspotharness.js" verify --ci
+EXIT_CODE=$?
+set -e
+if [ $EXIT_CODE -ne 5 ]; then
+  echo "❌ Error: 检测到 TOCTOU 二次修改时 verify 应当拦截失败返回 5，实际为 $EXIT_CODE"
+  exit 1
+fi
+echo "✔ TOCTOU 时间差篡改成功拦截"
+
+# 重新运行测试与构建以更新测试证据时间，此时 verify 应当恢复通过
+node "$BASE_DIR/bin/vspotharness.js" exec -- npm test
+node "$BASE_DIR/bin/vspotharness.js" exec -- npm run build
+node "$BASE_DIR/bin/vspotharness.js" verify --ci
+echo "✔ TOCTOU 再次运行测试后自动恢复通过验证成功"
+
+# 7. 运行 report 生成报告
+echo "----------------------------------------"
+echo "7. 测试 report 审计报告生成与 SARIF 导出..."
+node "$BASE_DIR/bin/vspotharness.js" report --format sarif
+
+REPORT_FILE_102=".vspotharness/runs/$RUN_ID_102/report.md"
+SARIF_FILE_102=".vspotharness/runs/$RUN_ID_102/report.sarif"
+
+if [ ! -f "$REPORT_FILE_102" ]; then
+  echo "❌ Error: STORY-102 审计报告(Markdown)未生成"
+  exit 1
+fi
+
+if [ ! -f "$SARIF_FILE_102" ]; then
+  echo "❌ Error: STORY-102 审计报告(SARIF)未生成"
+  exit 1
+fi
+
+# 检查 SARIF 内部结构是否合法
+node -e "
+const fs = require('fs');
+const sarif = JSON.parse(fs.readFileSync('$SARIF_FILE_102', 'utf8'));
+if (sarif.version !== '2.1.0' || !sarif.runs || sarif.runs.length === 0) {
+  process.exit(1);
+}
+"
+if [ $? -ne 0 ]; then
+  echo "❌ Error: 导出的 SARIF 文件格式不合规"
+  exit 1
+fi
+
+echo "✔ report 与 SARIF 验证成功"
 
 # 8. 运行 doctor 诊断
 echo "----------------------------------------"
@@ -247,6 +325,6 @@ node "$BASE_DIR/bin/vspotharness.js" doctor
 echo "✔ doctor 验证成功"
 
 echo "========================================"
-echo "🎉 VSPOT Harness P4 命令行集成测试全部通过！"
+echo "🎉 VSPOT Harness P5 命令行集成测试全部通过！"
 echo "========================================"
 cd "$BASE_DIR"

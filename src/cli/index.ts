@@ -75,6 +75,7 @@ program
   .command('report')
   .description('Generate execution audit report')
   .option('-r, --run <runId>', 'Target execution run ID (or VSPOT_RUN_ID env)')
+  .option('-f, --format <format>', 'Report format: markdown, sarif', 'markdown')
   .action((options) => {
     reportCommand(options);
   });

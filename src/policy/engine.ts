@@ -119,6 +119,23 @@ export class PolicyEngine {
       targetPath = path.relative(process.cwd(), filePath);
     }
 
+    // 强制防篡改保护：保护 .vspotharness/ 目录下的配置、密钥、故事文件（排除 runs/, cache/ 与 .gitignore）
+    if (mode === 'write') {
+      const isHarnessFile = minimatch(targetPath, '.vspotharness/**', { dot: true });
+      const isExcluded = minimatch(targetPath, '.vspotharness/runs/**', { dot: true }) || 
+                         minimatch(targetPath, '.vspotharness/cache/**', { dot: true }) ||
+                         minimatch(targetPath, '.vspotharness/.gitignore', { dot: true });
+      
+      if (isHarnessFile && !isExcluded) {
+        return {
+          decision: 'require_approval',
+          ruleId: 'harness-self-protection',
+          reason: `强制防护规则：未经授权禁止修改 VSPOT Harness 自身配置与策略文件 (${targetPath})。`,
+          approver: 'owner'
+        };
+      }
+    }
+
     const matchedRules: { rule: PathRule; decision: Decision }[] = [];
 
     if (this.policy.paths) {

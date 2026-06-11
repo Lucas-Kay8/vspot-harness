@@ -8,6 +8,7 @@ import { StateManager, StoryStatus } from '../../state/manager';
 import { AuditLogger, AuditEvent } from '../../audit/logger';
 import { PolicyEngine } from '../../policy/engine';
 import { verifyApprovalSignature } from '../../utils/crypto';
+import { reportCommand } from './report';
 
 interface GateResult {
   name: string;
@@ -73,7 +74,12 @@ function hasValidApprovalForFile(approvalsDir: string, storyId: string, runId: s
 
       if (approval.resources && Array.isArray(approval.resources)) {
         for (const pattern of approval.resources) {
-          if (minimatch(filePath, pattern, { dot: true }) || pattern === '*') {
+          if (pattern === '*') {
+            // 通配符 '*' 仅授权业务资源，不授权治理系统自身配置，防止越权篡改自身策略
+            if (!filePath.startsWith('.vspotharness/')) {
+              return true;
+            }
+          } else if (minimatch(filePath, pattern, { dot: true })) {
             return true;
           }
         }
@@ -141,6 +147,22 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
   console.log(colorBlue(`⚡ 正在评估运行环境 [${runId}] 的安全与质量门禁 (Verification Gates)...`));
 
   const changedFiles = getChangedFiles(runState.baseline_commit);
+  
+  // 计算代码变动文件的最新修改时间 (防 TOCTOU)
+  let maxCodeChangeTime = 0;
+  for (const file of changedFiles) {
+    if (file.startsWith('.vspotharness/')) continue;
+    try {
+      if (fs.existsSync(file)) {
+        const stat = fs.statSync(file);
+        const mtimeMs = stat.mtime.getTime();
+        if (mtimeMs > maxCodeChangeTime) {
+          maxCodeChangeTime = mtimeMs;
+        }
+      }
+    } catch (e) {}
+  }
+
   const events = logger.getEvents();
   const requiredGates = policyEngine?.getPolicy().gates?.required || ['scope', 'permissions', 'tests', 'build', 'approvals', 'audit'];
   
@@ -202,7 +224,11 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
 
     if (policyEngine) {
       for (const file of changedFiles) {
-        if (file.startsWith('.vspotharness/')) continue;
+        // 在评估写权限时，仅忽略 runs/, cache/ 与 .gitignore 等合理运行时变动文件
+        const isExcluded = file.startsWith('.vspotharness/runs/') || 
+                           file.startsWith('.vspotharness/cache/') || 
+                           file === '.vspotharness/.gitignore';
+        if (isExcluded) continue;
 
         const accessResult = policyEngine.evaluateFileAccess(file, 'write');
         if (accessResult.decision === 'deny') {
@@ -242,8 +268,14 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
     );
 
     if (testFinishedEvents.length > 0) {
-      passed = true;
-      message = `检测到已成功运行测试命令: "${testFinishedEvents[0].command}"`;
+      const testFinishedTime = new Date(testFinishedEvents[testFinishedEvents.length - 1].ts).getTime();
+      if (maxCodeChangeTime > 0 && testFinishedTime < maxCodeChangeTime) {
+        passed = false;
+        message = `[TOCTOU 警报] 检测到潜在时间差漏洞规避：有代码文件在测试运行成功后被篡改 (修改时间: ${new Date(maxCodeChangeTime).toISOString()}, 测试时间: ${testFinishedEvents[testFinishedEvents.length - 1].ts})。`;
+      } else {
+        passed = true;
+        message = `检测到已成功运行测试命令: "${testFinishedEvents[testFinishedEvents.length - 1].command}"`;
+      }
     }
 
     gateResults.push({
@@ -266,8 +298,14 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
     );
 
     if (buildFinishedEvents.length > 0) {
-      passed = true;
-      message = `检测到已成功运行构建命令: "${buildFinishedEvents[0].command}"`;
+      const buildFinishedTime = new Date(buildFinishedEvents[buildFinishedEvents.length - 1].ts).getTime();
+      if (maxCodeChangeTime > 0 && buildFinishedTime < maxCodeChangeTime) {
+        passed = false;
+        message = `[TOCTOU 警报] 检测到潜在时间差漏洞规避：有代码文件在构建运行成功后被篡改 (修改时间: ${new Date(maxCodeChangeTime).toISOString()}, 构建时间: ${buildFinishedEvents[buildFinishedEvents.length - 1].ts})。`;
+      } else {
+        passed = true;
+        message = `检测到已成功运行构建命令: "${buildFinishedEvents[buildFinishedEvents.length - 1].command}"`;
+      }
     }
 
     gateResults.push({
@@ -378,6 +416,14 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
   runState.status = allPassed ? 'COMPLETED' : 'FAILED';
   runState.ended_at = new Date().toISOString();
   stateManager.saveRun(runJsonPath, runState);
+
+  // 联动自动生成 MD 审计报告和 SARIF 安全合规报告
+  try {
+    reportCommand({ run: runId, format: 'markdown' });
+    reportCommand({ run: runId, format: 'sarif' });
+  } catch (err: any) {
+    console.error(colorRed(`⚠ 自动生成审计报告失败: ${err.message}`));
+  }
 
   process.exit(allPassed ? 0 : 5);
 }

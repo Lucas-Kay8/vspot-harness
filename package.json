@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts && tsx tests/unit/crypto.test.ts",
+    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts && tsx tests/unit/crypto.test.ts && tsx tests/unit/p5.test.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "repository": {
