@@ -2,14 +2,31 @@
   "name": "vspotharness",
   "version": "0.1.0",
   "description": "Policy-driven execution governance for AI coding agents.",
-  "main": "index.js",
+  "main": "dist/cli/index.js",
+  "types": "dist/cli/index.d.ts",
   "bin": {
     "vspotharness": "./bin/vspotharness.js"
   },
+  "files": [
+    "dist",
+    "bin",
+    "schemas",
+    "templates",
+    "adapters"
+  ],
   "scripts": {
     "build": "tsc",
-    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts && tsx tests/unit/crypto.test.ts"
+    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts && tsx tests/unit/crypto.test.ts",
+    "prepublishOnly": "npm run build && npm test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lucas-Kay8/vspot-harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Lucas-Kay8/vspot-harness/issues"
+  },
+  "homepage": "https://github.com/Lucas-Kay8/vspot-harness#readme",
   "keywords": [
     "ai",
     "agent",
