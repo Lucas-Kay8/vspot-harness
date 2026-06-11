@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VSPOT Story State",
+  "type": "object",
+  "properties": {
+    "story_id": { "type": "string" },
+    "title": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "READY",
+        "IN_PROGRESS",
+        "CODE_COMPLETE",
+        "APPROVAL_PENDING",
+        "VERIFYING",
+        "FIXING",
+        "READY_FOR_REVIEW",
+        "REVIEW_FAILED",
+        "APPROVED",
+        "DONE",
+        "BLOCKED"
+      ]
+    },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "technical_context": { "type": "string" },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "include": { "type": "array", "items": { "type": "string" } },
+        "exclude": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["story_id", "status"]
+}

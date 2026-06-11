@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VSPOT Harness Policy",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Policy format version"
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "unknown_action": { "$ref": "#/definitions/decision" },
+        "unknown_external_system": { "$ref": "#/definitions/decision" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "max_changed_files": { "type": "integer" },
+        "outside_scope": { "$ref": "#/definitions/decision" }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "match": { "type": "array", "items": { "type": "string" } },
+          "read": { "$ref": "#/definitions/decision" },
+          "write": { "$ref": "#/definitions/decision" },
+          "approver": { "type": "string" }
+        },
+        "required": ["id", "match"]
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "match": { "type": "array", "items": { "type": "string" } },
+          "decision": { "$ref": "#/definitions/decision" },
+          "approver": { "type": "string" },
+          "constraints": {
+            "type": "object",
+            "properties": {
+              "network": { "type": "boolean" },
+              "environment": { "type": "string" }
+            }
+          }
+        },
+        "required": ["id", "match", "decision"]
+      }
+    },
+    "gates": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["version"],
+  "definitions": {
+    "decision": {
+      "type": "string",
+      "enum": ["allow", "require_approval", "deny", "needs_review"]
+    }
+  }
+}

@@ -1,0 +1,68 @@
+version: 1
+
+defaults:
+  unknown_action: require_approval
+  unknown_external_system: deny
+
+scope:
+  max_changed_files: 10
+  outside_scope: require_approval
+
+paths:
+  - id: secrets
+    match: 
+      - ".env"
+      - ".env.*"
+      - "**/credentials.*"
+      - "**/*.pem"
+    read: deny
+    write: deny
+  - id: auth
+    match: 
+      - "auth/**"
+      - "**/authorization/**"
+    read: allow
+    write: require_approval
+    approver: security-owner
+  - id: production-config
+    match: 
+      - "config/production.*"
+      - "deploy/**"
+      - "infra/**"
+    write: require_approval
+    approver: platform-owner
+
+commands:
+  - id: local-verification
+    match: 
+      - "npm run lint"
+      - "npm run typecheck"
+      - "npm test"
+      - "npm run build"
+      - "pnpm lint"
+      - "pnpm test"
+    decision: allow
+    constraints:
+      network: false
+      environment: local
+  - id: dependency-change
+    match: 
+      - "npm install **"
+      - "pnpm add **"
+      - "yarn add **"
+    decision: require_approval
+    approver: maintainer
+  - id: destructive-shell
+    match: 
+      - "rm -rf **"
+      - "git reset --hard **"
+    decision: deny
+
+gates:
+  required:
+    - scope
+    - permissions
+    - tests
+    - build
+    - approvals
+    - audit

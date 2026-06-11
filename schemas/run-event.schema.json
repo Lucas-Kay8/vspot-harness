@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VSPOT Run Event",
+  "type": "object",
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "type": {
+      "type": "string",
+      "enum": [
+        "run.started",
+        "file.read",
+        "file.write",
+        "command.finished",
+        "git.diff.captured",
+        "state.changed",
+        "approval.requested",
+        "approval.granted"
+      ]
+    },
+    "run_id": { "type": "string" },
+    "story_id": { "type": "string" },
+    "actor": { "type": "string" },
+    "path": { "type": "string" },
+    "result": { "type": "string" },
+    "command": { "type": "string" },
+    "exit_code": { "type": "integer" },
+    "evidence": { "type": "string" }
+  },
+  "required": ["ts", "type", "run_id"]
+}
