@@ -6,6 +6,7 @@ import { execCommand } from './commands/exec';
 import { verifyCommand } from './commands/verify';
 import { reportCommand } from './commands/report';
 import { doctorCommand } from './commands/doctor';
+import { signCommand } from './commands/sign';
 
 const program = new Command();
 
@@ -78,7 +79,22 @@ program
     reportCommand(options);
   });
 
-// 7. doctor 命令
+// 7. sign 命令
+program
+  .command('sign')
+  .description('Sign an approval record cryptographically using owner private key')
+  .option('-s, --story <storyId>', 'Target Story ID (required)')
+  .option('-r, --run <runId>', 'Target Run ID')
+  .option('-c, --commands <commands>', 'Comma-separated authorized command patterns')
+  .option('-f, --resources <resources>', 'Comma-separated authorized file edit patterns')
+  .option('-d, --decision <decision>', 'Approval decision', 'approved')
+  .option('-a, --approver <approver>', 'Approver identity', 'owner')
+  .option('-k, --private-key <keyPath>', 'Path to owner private key')
+  .action((options) => {
+    signCommand(options);
+  });
+
+// 8. doctor 命令
 program
   .command('doctor')
   .description('Diagnose current CLI execution environment and policies')

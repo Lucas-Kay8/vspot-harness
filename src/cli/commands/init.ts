@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import pc from 'picocolors';
 import { getHarnessDir, getConfigPath, getStoriesDir, getRunsDir, getApprovalsDir } from '../../utils/paths';
+import { generateOwnerKeyPair } from '../../utils/crypto';
 
 export function initCommand(options: { force?: boolean }) {
   const harnessDir = getHarnessDir();
@@ -68,7 +69,39 @@ gates:
     }
   }
 
+  // 3. 生成密钥对并写入 .gitignore 保护规则
+  const pubKeyPath = path.join(harnessDir, 'owner_key.pub');
+  const privKeyPath = path.join(harnessDir, 'owner_key');
+
+  if (!fs.existsSync(pubKeyPath) || !fs.existsSync(privKeyPath)) {
+    try {
+      console.log(pc.blue('⚡ 正在为您自动生成人类所有者（Owner）非对称加密密钥对...'));
+      const keypair = generateOwnerKeyPair();
+      fs.writeFileSync(pubKeyPath, keypair.publicKey, 'utf8');
+      fs.writeFileSync(privKeyPath, keypair.privateKey, 'utf8');
+      fs.chmodSync(privKeyPath, 0o600);
+      console.log(pc.green('✔ 已生成加密密钥对，并配置了安全访问权限。'));
+    } catch (e: any) {
+      console.error(pc.red(`❌ 生成密钥对失败: ${e.message}`));
+    }
+  }
+
+  // 自动将私钥追加至 .gitignore
+  const gitignorePath = path.join(process.cwd(), '.gitignore');
+  try {
+    let gitignoreContent = '';
+    if (fs.existsSync(gitignorePath)) {
+      gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
+    }
+    
+    if (!gitignoreContent.includes('owner_key')) {
+      const lineToAppend = '\n# VSPOT Harness Private Key\n.vspotharness/owner_key\n.vspotharness/cache/\n';
+      fs.appendFileSync(gitignorePath, lineToAppend, 'utf8');
+      console.log(pc.green('✔ 已自动向 .gitignore 追加私钥与缓存忽略规则。'));
+    }
+  } catch (e: any) {
+    console.warn(pc.yellow(`⚠ 无法更新 .gitignore: ${e.message}，请手动进行配置以免泄露私钥。`));
+  }
+
   console.log(pc.cyan('\n🎉 VSPOT Harness 初始化完成！'));
-  console.log(pc.white(`请确保在您的项目 .gitignore 中添加以下条目：`));
-  console.log(pc.yellow(`  .vspotharness/cache/`));
 }

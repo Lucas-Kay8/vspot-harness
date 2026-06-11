@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts"
+    "test": "tsx tests/unit/policy.test.ts && tsx tests/unit/adapter.test.ts && tsx tests/unit/crypto.test.ts"
   },
   "keywords": [
     "ai",

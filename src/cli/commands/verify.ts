@@ -7,6 +7,7 @@ import { getRunJsonPath, getRunDir, getStoryPath, getConfigPath, getApprovalsDir
 import { StateManager, StoryStatus } from '../../state/manager';
 import { AuditLogger, AuditEvent } from '../../audit/logger';
 import { PolicyEngine } from '../../policy/engine';
+import { verifyApprovalSignature } from '../../utils/crypto';
 
 interface GateResult {
   name: string;
@@ -40,6 +41,15 @@ function getChangedFiles(baselineCommit: string): string[] {
 
 function hasValidApprovalForFile(approvalsDir: string, storyId: string, runId: string, filePath: string): boolean {
   if (!fs.existsSync(approvalsDir)) return false;
+
+  const pubKeyPath = path.join(process.cwd(), '.vspotharness', 'owner_key.pub');
+  let publicKeyPem: string | null = null;
+  if (fs.existsSync(pubKeyPath)) {
+    try {
+      publicKeyPem = fs.readFileSync(pubKeyPath, 'utf8');
+    } catch (e) {}
+  }
+
   const files = fs.readdirSync(approvalsDir);
   const now = new Date();
 
@@ -48,6 +58,13 @@ function hasValidApprovalForFile(approvalsDir: string, storyId: string, runId: s
     try {
       const p = path.join(approvalsDir, file);
       const approval = JSON.parse(fs.readFileSync(p, 'utf8'));
+
+      // 0. 校验密码学签名
+      if (publicKeyPem) {
+        if (!approval.signature || !verifyApprovalSignature(approval, approval.signature, publicKeyPem)) {
+          continue;
+        }
+      }
 
       if (approval.story_id !== storyId) continue;
       if (approval.run_id && approval.run_id !== runId) continue;
@@ -294,12 +311,25 @@ export function verifyCommand(options: { run?: string; ci?: boolean }) {
 
   // 6. audit 审计门禁
   if (requiredGates.includes('audit')) {
-    const passed = events.length > 0;
+    const integrity = logger.verifyIntegrity();
+    const passed = events.length > 0 && integrity.valid;
+    let message = '';
+    
+    if (!passed) {
+      if (events.length === 0) {
+        message = '缺少有效的审计记录。';
+      } else {
+        message = `审计日志完整性校验失败: ${integrity.message}`;
+      }
+    } else {
+      message = `审计日志文件已成功建立，共记录 ${events.length} 个执行事件，且通过防篡改哈希链校验。`;
+    }
+
     gateResults.push({
       name: 'audit',
       passed,
       status: passed ? 'PASS' : 'FAIL',
-      message: passed ? `审计日志文件已成功建立，共记录 ${events.length} 个执行事件。` : '缺少有效的审计记录。'
+      message
     });
   }
 

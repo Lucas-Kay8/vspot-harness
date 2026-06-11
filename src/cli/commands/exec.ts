@@ -7,9 +7,19 @@ import { getConfigPath, getRunJsonPath, getRunDir, getApprovalsDir } from '../..
 import { PolicyEngine } from '../../policy/engine';
 import { StateManager } from '../../state/manager';
 import { AuditLogger } from '../../audit/logger';
+import { verifyApprovalSignature } from '../../utils/crypto';
 
 function findValidApproval(approvalsDir: string, storyId: string, runId: string, command: string): any | null {
   if (!fs.existsSync(approvalsDir)) return null;
+  
+  const pubKeyPath = path.join(process.cwd(), '.vspotharness', 'owner_key.pub');
+  let publicKeyPem: string | null = null;
+  if (fs.existsSync(pubKeyPath)) {
+    try {
+      publicKeyPem = fs.readFileSync(pubKeyPath, 'utf8');
+    } catch (e) {}
+  }
+
   const files = fs.readdirSync(approvalsDir);
   const now = new Date();
 
@@ -18,6 +28,13 @@ function findValidApproval(approvalsDir: string, storyId: string, runId: string,
     try {
       const p = path.join(approvalsDir, file);
       const approval = JSON.parse(fs.readFileSync(p, 'utf8'));
+
+      // 0. 若系统公钥存在，进行密码学签名防伪造校验
+      if (publicKeyPem) {
+        if (!approval.signature || !verifyApprovalSignature(approval, approval.signature, publicKeyPem)) {
+          continue; // 签名不存在或验证失败，拒绝信任该文件
+        }
+      }
 
       // 1. 检查 story_id 匹配
       if (approval.story_id !== storyId) continue;

@@ -53,6 +53,22 @@ export function doctorCommand() {
     } catch (e) {}
   }
 
+  // 4. 检查人类所有者私钥安全 (防泄露)
+  const privKeyPath = '.vspotharness/owner_key';
+  if (fs.existsSync(privKeyPath)) {
+    try {
+      // 检查 git 是否追踪了该文件
+      const gitTracked = execSync(`git ls-files ${privKeyPath}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      if (gitTracked) {
+        console.log(pc.red(`❌ [密钥安全] 严重警报：私钥文件 owner_key 已经被 Git 追踪！这存在私钥泄漏风险。`));
+        console.log(pc.gray('      💡 修复建议: 请立即执行 `git rm --cached .vspotharness/owner_key` 并在 .gitignore 中追加配置。'));
+        success = false;
+      } else {
+        console.log(pc.green(`✔ [密钥安全] 私钥文件 owner_key 未被 Git 追踪，安全隔离状态良好。`));
+      }
+    } catch (e) {}
+  }
+
   console.log(pc.white('\n===================================================='));
   if (success) {
     console.log(pc.green(`🎉 VSPOT Harness 诊断成功！环境一切正常。`));
