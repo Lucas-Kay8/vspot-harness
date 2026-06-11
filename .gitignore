@@ -16,3 +16,6 @@ jspm_packages/
 
 # VSPOT Harness specifics
 .vspotharness/cache/
+dist/
+examples/minimal-node/.vspotharness/
+package-lock.json

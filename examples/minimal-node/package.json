@@ -1,0 +1,7 @@
+{
+  "name": "mock-app",
+  "scripts": {
+    "test": "echo \"all tests passed\"",
+    "build": "echo \"build success\""
+  }
+}

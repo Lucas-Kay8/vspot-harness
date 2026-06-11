@@ -7,7 +7,8 @@
     "vspotharness": "./bin/vspotharness.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "tsx tests/unit/policy.test.ts"
   },
   "keywords": [
     "ai",
@@ -16,5 +17,19 @@
     "cli"
   ],
   "author": "Lucas",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "commander": "^15.0.0",
+    "js-yaml": "^4.2.0",
+    "minimatch": "^10.2.5",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/minimatch": "^5.1.2",
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
 }
